@@ -5,7 +5,6 @@ addEventListener('fetch', event => {
 })
 
 async function handleRequest(request) {
-
   const url = new URL(request.url);
   const pathname = url.pathname.substring(1).toUpperCase().split('-');
   const origin = pathname[0];
@@ -18,34 +17,41 @@ async function handleRequest(request) {
     },
   };
 
-  const [resDeparture, resReturn] = await Promise.all([
-    fetch(urlAPI + origin+'-'+destination, requestOptions).catch(error => error),
-    fetch(urlAPI + destination+'-'+origin, requestOptions).catch(error => error)
-  ]);
-  
-  const datesConfig = {
-    datesConfig: {
-      departure: {
-        minDate: 0,
-        maxDate: 365,
-        validDaysOfWeek: [],
-        includedDates: [],
-        excludedDates: [],
-        excludedDateRanges: [],
-        validFrom: '',
-        validTo: ''  
-      },
-      return: {
-        minDate: 14,
-        maxDate: 372,
-        validDaysOfWeek: [],
-        includedDates: [],
-        excludedDates: [],
-        excludedDateRanges: [],
-        validFrom: '',
-        validTo: ''  
-      }  
+  const fetchOneWay = async url => {
+    const response = await fetch(url, requestOptions);
+    if (!response.ok) {
+      throw `{"status":"${response.status}", "statusText":"${response.statusText}"}`;
     }
+    return response.json();
+  }  
+
+  const fetchDates = async () => {
+    const response = await Promise.all([
+      fetchOneWay(urlAPI + origin+'-'+destination),
+      fetchOneWay(urlAPI + destination+'-'+origin)
+    ]).catch(error => {
+      return error;
+    });
+    return response;
+  }
+
+  const datesConfig = {
+    departure: {
+      minDate: 0,
+      maxDate: 365,
+      validDaysOfWeek: [],
+      includedDates: [],
+      excludedDates: [],
+      excludedDateRanges: [],
+    },
+    return: {
+      minDate: 14,
+      maxDate: 372,
+      validDaysOfWeek: [],
+      includedDates: [],
+      excludedDates: [],
+      excludedDateRanges: [],
+    }  
   };
 
   const fullRangeDates = (fromDate, toDate) => {
@@ -77,24 +83,39 @@ async function handleRequest(request) {
     });
     validDates = validDates.sort();
     dateFrom = (route === 'departure') ? validDates[0] : dateFrom;
+    // datesConfig[route].includedDates = validDates;
     const allDates = fullRangeDates(dateFrom, validDates[validDates.length-1]);
-    datesConfig.datesConfig[route].excludedDates = allDates.filter(d=>!validDates.includes(d));
-    datesConfig.datesConfig[route].validFrom = dateFrom;
-    datesConfig.datesConfig[route].validTo = validDates[validDates.length-1];
-    datesConfig.datesConfig[route].minDate = getDaysFromToday(dateFrom);
-    datesConfig.datesConfig[route].maxDate = getDaysFromToday(validDates[validDates.length-1]);
+    datesConfig[route].excludedDates = allDates.filter(d=>!validDates.includes(d));
+    datesConfig[route].minDate = dateFrom; 
+    datesConfig[route].maxDate = validDates[validDates.length-1];
+  }
+
+  const resOpt = {
+    status: 200,
+    statusText: 'OK',
+    headers: { 'content-type': 'application/json' }
   }
 
   const getDatesConfig = async () => {
-    if (resDeparture.status === 200) getRouteDates(await resDeparture.json(), 'departure');
-    if (resReturn.status === 200) getRouteDates(await resReturn.json(), 'return');
-    return datesConfig;
+    try {
+      const response = await fetchDates();
+      if (typeof response === 'string') {
+        const error = JSON.parse(response); 
+        resOpt.status = error.status;
+        resOpt.statusText = error.statusText;
+        return '';
+      }
+      const [resDeparture, resReturn] = response;
+      getRouteDates(resDeparture, 'departure');
+      getRouteDates(resReturn, 'return');
+      return JSON.stringify(datesConfig);
+    } catch (error) {
+      console.log("paso: ", error);
+    }
   }
 
-  const dataStr = JSON.stringify(await getDatesConfig());
+  const dataStr = await getDatesConfig();
 
-  return new Response(dataStr, {
-    headers: { 'content-type': 'application/json' }
-  })
+  return new Response(dataStr, resOpt)
 
 }

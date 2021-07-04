@@ -1,7 +1,14 @@
 name = "avianca"
-type = "javascript"
-
+type = "webpack"
 account_id = "7df0699f57806423b6de07ba264361ac"
 workers_dev = true
 route = ""
 zone_id = ""
+webpack_config = "webpack.config.js"
+
+kv_namespaces = [
+  { binding = "AVIANCA", id = "343e4da4285a473191d8b31f0a4a25c9" }
+]
+
+[triggers]
+crons = ["*/10 * * * *"]

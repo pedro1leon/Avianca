@@ -1,3 +1,5 @@
+import DatesConfig from './datesconfig';
+
 const urlAPI = 'https://avianca-dev.azure-api.net/flightsschedule-dev/calendar/';
 
 addEventListener('fetch', event => {
@@ -7,6 +9,7 @@ addEventListener('fetch', event => {
 async function handleRequest(request) {
   const url = new URL(request.url);
   const pathname = url.pathname.substring(1).toUpperCase().split('-');
+  console.log("pathname ===> ", pathname);
   const origin = pathname[0];
   const destination = pathname.length > 1 ? pathname[1] : "";
 
@@ -35,24 +38,9 @@ async function handleRequest(request) {
     return response;
   }
 
-  const datesConfig = {
-    departure: {
-      minDate: 0,
-      maxDate: 365,
-      validDaysOfWeek: [],
-      includedDates: [],
-      excludedDates: [],
-      excludedDateRanges: [],
-    },
-    return: {
-      minDate: 14,
-      maxDate: 372,
-      validDaysOfWeek: [],
-      includedDates: [],
-      excludedDates: [],
-      excludedDateRanges: [],
-    }  
-  };
+  // console.log(DatesConfig);
+
+  const datesConfig =  new DatesConfig();
 
   const fullRangeDates = (fromDate, toDate) => {
     const start = new Date(fromDate);
@@ -73,7 +61,7 @@ async function handleRequest(request) {
 
   let dateFrom = '';
 
-  const getRouteDates = (data, route) => {
+  const getRouteDates = (data, route, sendValidDate) => {
     let validDates = [];
     Object.keys(data.dateYears).forEach(year => {
       Object.keys(data.dateYears[year]).forEach(month => {
@@ -83,9 +71,11 @@ async function handleRequest(request) {
     });
     validDates = validDates.sort();
     dateFrom = (route === 'departure') ? validDates[0] : dateFrom;
-    // datesConfig[route].includedDates = validDates;
-    const allDates = fullRangeDates(dateFrom, validDates[validDates.length-1]);
-    datesConfig[route].excludedDates = allDates.filter(d=>!validDates.includes(d));
+    if (sendValidDate) datesConfig[route].includedDates = validDates 
+    else {
+      const allDates = fullRangeDates(dateFrom, validDates[validDates.length-1]);
+      datesConfig[route].excludedDates = allDates.filter(d=>!validDates.includes(d));
+    }
     datesConfig[route].minDate = dateFrom; 
     datesConfig[route].maxDate = validDates[validDates.length-1];
   }
@@ -106,11 +96,13 @@ async function handleRequest(request) {
         return '';
       }
       const [resDeparture, resReturn] = response;
-      getRouteDates(resDeparture, 'departure');
-      getRouteDates(resReturn, 'return');
+      const date2send = await AVIANCA.get('date2send'); 
+      const sendValidDate = date2send === 'excluded' ? false : true;
+      getRouteDates(resDeparture, 'departure', sendValidDate);
+      getRouteDates(resReturn, 'return', sendValidDate);
       return JSON.stringify(datesConfig);
     } catch (error) {
-      console.log("paso: ", error);
+      throw error;
     }
   }
 
@@ -118,4 +110,15 @@ async function handleRequest(request) {
 
   return new Response(dataStr, resOpt)
 
+}
+
+addEventListener('scheduled', event => {
+  event.waitUntil(handleScheduled(event))
+})
+
+async function handleScheduled(event) {
+  console.log(event);
+  let date2send = await AVIANCA.get('date2send'); 
+  date2send = date2send === 'excluded' ? 'included' : 'excluded'; 
+  await AVIANCA.put('date2send', date2send);
 }

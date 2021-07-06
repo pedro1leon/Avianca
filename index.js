@@ -16,7 +16,7 @@ async function handleRequest(request) {
   const requestOptions = {
     method: 'GET',
     headers: {
-      "Ocp-Apim-Subscription-Key": "724e64c340644502bc7a966f94307c77",
+      "Ocp-Apim-Subscription-Key": `${SUBSCRIPTION_KEY}` //"724e64c340644502bc7a966f94307c77",
     },
   };
 

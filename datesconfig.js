@@ -3,7 +3,7 @@ class DatesConfig {
     this.departure = {
       minDate: 0,
       maxDate: 365,
-      validDaysOfWeek: ['mon'],
+      validDaysOfWeek: [],
       includedDates: [],
       excludedDates: [],
       excludedDateRanges: [],
